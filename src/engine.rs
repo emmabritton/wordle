@@ -1,5 +1,4 @@
 use crate::word_list::*;
-use rand::prelude::SliceRandom;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum SlotState {
@@ -46,15 +45,14 @@ pub struct WordleEngine {
 }
 
 impl WordleEngine {
-    pub fn new(word_size: usize) -> Self {
+    pub fn new(word_size: usize, idx: usize) -> Self {
         let word = match word_size {
-            4 => FOUR.choose(&mut rand::thread_rng()),
-            5 => FIVE.choose(&mut rand::thread_rng()),
-            6 => SIX.choose(&mut rand::thread_rng()),
-            7 => SEVEN.choose(&mut rand::thread_rng()),
+            4 => FOUR[idx],
+            5 => FIVE[idx],
+            6 => SIX[idx],
+            7 => SEVEN[idx],
             _ => panic!("Invalid word size: {word_size}"),
         }
-        .expect("Word not found")
         .to_string();
         WordleEngine {
             word_size,
@@ -142,7 +140,7 @@ mod test {
 
     #[test]
     fn check_typing() {
-        let mut engine = WordleEngine::new(4);
+        let mut engine = WordleEngine::new(4, 1613);
         engine.add_letter('A');
         assert_eq!(engine.state, EngineState::Guessing);
         assert_eq!(engine.current_guess, vec!['A']);
@@ -152,8 +150,7 @@ mod test {
 
     #[test]
     fn basic_play() {
-        let mut engine = WordleEngine::new(4);
-        engine.word = "TORT".to_string();
+        let mut engine = WordleEngine::new(4, 1613);
 
         assert_eq!(engine.guesses, Vec::<Vec<LetterSlot>>::new());
         assert_eq!(engine.current_guess, vec![]);

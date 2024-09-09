@@ -4,12 +4,13 @@ use crate::ui::button_bar::{ButtonBar, ButtonDef, BAR_HEIGHT};
 use crate::ui::keyboard::{Key, Keyboard};
 use crate::ui::theme::colors;
 use crate::ui::wordle_renderer::{render_field, render_guess_field};
-use crate::{Input, SceneName, SceneResult, HEIGHT, WIDTH};
+use crate::word_list::word_count_for_size;
+use crate::{Input, SceneName, SceneResult, Settings, HEIGHT, WIDTH};
 use pixels_graphics_lib::prelude::*;
 
 const ANIM_UPDATE_RATE: f64 = 0.05;
 const ANIM_GUESS_STEP: f64 = ANIM_UPDATE_RATE / 5.0;
-const ANIM_ENDGAME_STEP: f64 = ANIM_UPDATE_RATE / 2.0;
+const ANIM_ENDGAME_STEP: f64 = ANIM_UPDATE_RATE / 1.3;
 
 #[derive(Debug)]
 enum GameState {
@@ -32,12 +33,36 @@ pub struct GameScene {
 }
 
 impl GameScene {
-    pub fn new(word_size: usize) -> Box<Self> {
+    pub fn new(word_size: usize, mut settings: AppPrefs<Settings>) -> Box<Self> {
         let keyboard_pos = coord!(WIDTH / 2, HEIGHT)
             - (Keyboard::size().0 / 2, Keyboard::size().1)
             - (0_usize, BAR_HEIGHT);
-        let engine = WordleEngine::new(word_size);
-        println!("{}", engine.word);
+        if settings
+            .data
+            .word_idx
+            .get(&word_size)
+            .copied()
+            .unwrap_or_default()
+            == word_count_for_size(word_size)
+        {
+            settings.data.word_idx.insert(word_size, 0);
+        }
+        let engine = WordleEngine::new(
+            word_size,
+            settings
+                .data
+                .word_idx
+                .get(&word_size)
+                .copied()
+                .unwrap_or_default(),
+        );
+        settings
+            .data
+            .word_idx
+            .entry(word_size)
+            .and_modify(|v| *v += 1)
+            .or_insert(1);
+        settings.save();
         Box::new(GameScene {
             engine,
             anim_perc: 0.0,

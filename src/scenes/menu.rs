@@ -1,8 +1,8 @@
 use crate::scenes::keys_to_input;
 use crate::ui::button_bar::{ButtonBar, ButtonDef, BAR_HEIGHT};
 use crate::ui::theme::colors;
-use crate::SceneName::Game;
-use crate::{Input, SceneName, SceneResult, HEIGHT, WIDTH};
+use crate::word_list::{FIVE, FOUR, SEVEN, SIX};
+use crate::{Input, SceneName, SceneResult, Settings, HEIGHT, WIDTH};
 use pixels_graphics_lib::prelude::*;
 
 const BUTTON_START: Coord =
@@ -12,8 +12,11 @@ const BUTTON_SIZE: (usize, usize) = (120, 20);
 const SIZE_BUTTON_SIZE: usize = 20;
 const SIZE_BUTTON_START: Coord = Coord::new(
     (WIDTH / 2 - SIZE_BUTTON_SIZE * 2) as isize,
-    ((HEIGHT as f32) * 0.4) as isize,
+    ((HEIGHT as f32) * 0.3) as isize,
 );
+
+const SIZE_REMAINING_POS: Coord =
+    Coord::new((WIDTH / 2) as isize, ((HEIGHT as f32) * 0.3) as isize + 32);
 
 pub struct MenuScene {
     result: Option<SceneUpdateResult<SceneResult, SceneName>>,
@@ -21,10 +24,11 @@ pub struct MenuScene {
     button_idx: usize,
     button_bar: ButtonBar,
     input_timer: Timer,
+    size_idxs: [usize; 4],
 }
 
 impl MenuScene {
-    pub fn new() -> Box<Self> {
+    pub fn new(settings: AppPrefs<Settings>) -> Box<Self> {
         Box::new(MenuScene {
             size_idx: 1,
             button_idx: 0,
@@ -40,6 +44,12 @@ impl MenuScene {
             ),
             input_timer: Timer::new_once(0.3),
             result: None,
+            size_idxs: [
+                settings.data.word_idx.get(&4).copied().unwrap_or_default(),
+                settings.data.word_idx.get(&5).copied().unwrap_or_default(),
+                settings.data.word_idx.get(&6).copied().unwrap_or_default(),
+                settings.data.word_idx.get(&7).copied().unwrap_or_default(),
+            ],
         })
     }
 }
@@ -63,6 +73,26 @@ impl MenuScene {
             );
             graphics.draw_rect(rect, stroke(colors::MENU_DEFAULT));
         }
+
+        let max = match self.size_idx {
+            0 => FOUR.len(),
+            1 => FIVE.len(),
+            2 => SIX.len(),
+            3 => SEVEN.len(),
+            _ => panic!("invalid size_idx {}", self.size_idx),
+        };
+        let count = self.size_idxs[self.size_idx];
+
+        let (text, color) = if max == count {
+            ("All done!".to_string(), colors::WIN_BANNER)
+        } else {
+            (format!("{}/{}", count, max), colors::MENU_DEFAULT)
+        };
+        graphics.draw_text(
+            &text,
+            TextPos::px(SIZE_REMAINING_POS),
+            (color, PixelFont::Standard6x7, Positioning::Center),
+        );
 
         let rect = Rect::new_with_size(
             SIZE_BUTTON_START + (self.size_idx * SIZE_BUTTON_SIZE, 0) - (1, 0),
@@ -146,7 +176,10 @@ impl Scene<SceneResult, SceneName> for MenuScene {
             }
             let play_button = Rect::new_with_size(BUTTON_START, BUTTON_SIZE.0, BUTTON_SIZE.1);
             if play_button.contains(down_at) && play_button.contains(mouse.xy) {
-                self.result = Some(SceneUpdateResult::Push(false, Game(self.size_idx + 4)));
+                self.result = Some(SceneUpdateResult::Push(
+                    false,
+                    SceneName::Game(self.size_idx + 4),
+                ));
             }
             let exit_button =
                 Rect::new_with_size(BUTTON_START + (0, 30), BUTTON_SIZE.0, BUTTON_SIZE.1);
@@ -159,7 +192,7 @@ impl Scene<SceneResult, SceneName> for MenuScene {
     fn update(
         &mut self,
         timing: &Timing,
-        _: &MouseData,
+        mouse: &MouseData,
         held_keys: &FxHashSet<KeyCode>,
         controller: &GameController,
     ) -> SceneUpdateResult<SceneResult, SceneName> {
@@ -208,6 +241,13 @@ impl Scene<SceneResult, SceneName> for MenuScene {
                     Input::Escape => return SceneUpdateResult::Pop(None),
                 }
             }
+        }
+
+        let size_rect =
+            Rect::new_with_size(SIZE_BUTTON_START, SIZE_BUTTON_SIZE * 4, SIZE_BUTTON_SIZE);
+        if size_rect.contains(mouse.xy) {
+            self.size_idx =
+                (((mouse.xy - SIZE_BUTTON_START).x as usize) / SIZE_BUTTON_SIZE).clamp(0, 3);
         }
 
         self.result.clone().unwrap_or(SceneUpdateResult::Nothing)

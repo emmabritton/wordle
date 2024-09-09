@@ -8,6 +8,8 @@ use crate::scenes::menu::MenuScene;
 use anyhow::Result;
 use log::LevelFilter;
 use pixels_graphics_lib::prelude::*;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 const WIDTH: usize = 260;
 const HEIGHT: usize = 300;
@@ -20,6 +22,18 @@ pub enum Input {
     Left,
     Right,
     Escape,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct Settings {
+    pub word_idx: HashMap<usize, usize>,
+}
+
+fn settings() -> AppPrefs<Settings> {
+    AppPrefs::new("app", "emmabritton", "wordle", || Settings {
+        word_idx: HashMap::new(),
+    })
+    .expect("Unable to create prefs file")
 }
 
 fn main() -> Result<()> {
@@ -39,10 +53,10 @@ fn setup_logger() {
 
 fn start_menu() -> Result<(), GraphicsError> {
     let switcher: SceneSwitcher<SceneResult, SceneName> = |_, list, name| match name {
-        SceneName::Game(word_size) => list.push(GameScene::new(word_size)),
+        SceneName::Game(word_size) => list.push(GameScene::new(word_size, settings())),
     };
 
-    let menu = MenuScene::new();
+    let menu = MenuScene::new(settings());
 
     run_scenes(
         WIDTH,
