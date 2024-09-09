@@ -30,10 +30,24 @@ pub struct GameScene {
     anim_timer: Timer,
     state: GameState,
     anim_perc: f64,
+    #[allow(unused)] //needed to play sound
+    audio_engine: Option<AudioEngine>,
+    win_sound: Option<SoundEffect>,
 }
 
 impl GameScene {
     pub fn new(word_size: usize, mut settings: AppPrefs<Settings>) -> Box<Self> {
+        let (audio_engine, sound) = if let Ok(engine) = AudioEngine::new() {
+            if let Ok(win_sound) =
+                engine.load_from_bytes(include_bytes!("../../assets/win.wav"), 1.75)
+            {
+                (Some(engine), Some(win_sound))
+            } else {
+                (None, None)
+            }
+        } else {
+            (None, None)
+        };
         let keyboard_pos = coord!(WIDTH / 2, HEIGHT)
             - (Keyboard::size().0 / 2, Keyboard::size().1)
             - (0_usize, BAR_HEIGHT);
@@ -66,6 +80,7 @@ impl GameScene {
         Box::new(GameScene {
             engine,
             anim_perc: 0.0,
+            audio_engine,
             state: GameState::Input,
             show_error: false,
             keyboard: Keyboard::new(keyboard_pos),
@@ -85,6 +100,7 @@ impl GameScene {
                 &[("CLOSE", ButtonDef::Escape)],
             ),
             input_timer: Timer::new_once(0.3),
+            win_sound: sound,
         })
     }
 }
@@ -117,6 +133,11 @@ impl GameScene {
             } else {
                 self.anim_perc = 0.0;
                 self.state = GameState::AnimEndGame;
+                if self.engine.state == EngineState::Found {
+                    if let Some(sound) = &mut self.win_sound {
+                        sound.play();
+                    }
+                }
             }
         }
     }
@@ -146,7 +167,7 @@ impl Scene<SceneResult, SceneName> for GameScene {
 
         if self.show_error {
             graphics.draw_text(
-                "Not a word",
+                "Unknown word",
                 TextPos::px(coord!(WIDTH / 2, HEIGHT - Keyboard::size().1 - 26)),
                 (colors::ERROR, PixelFont::Standard6x7, Positioning::Center),
             );
@@ -203,6 +224,9 @@ impl Scene<SceneResult, SceneName> for GameScene {
         held_keys: &FxHashSet<KeyCode>,
         controller: &GameController,
     ) -> SceneUpdateResult<SceneResult, SceneName> {
+        if let Some(sound) = &mut self.win_sound {
+            sound.update(timing);
+        }
         if self.input_timer.update(timing) {
             let input = keys_to_input(held_keys, controller);
             if matches!(self.state, GameState::Input) {

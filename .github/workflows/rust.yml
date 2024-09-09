@@ -23,7 +23,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Install linux libs
-        run: sudo apt-get update; sudo apt-get install --no-install-recommends pkg-config build-essential gcc-multilib libudev-dev libgtk-3-dev
+        run: sudo apt-get update; sudo apt-get install --no-install-recommends pkg-config build-essential gcc-multilib libudev-dev libjack-jackd2-dev libjack-jackd2-0 libasound2-dev alsa
 
       - name: fmt
         run: cargo fmt --all -- --check
@@ -61,7 +61,7 @@ jobs:
 
       - name: Install linux deps
         if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get update; sudo apt-get install --no-install-recommends pkg-config build-essential gcc-multilib libudev-dev libgtk-3-dev
+        run: sudo apt-get update; sudo apt-get install --no-install-recommends pkg-config build-essential gcc-multilib libudev-dev libjack-jackd2-dev libjack-jackd2-0 libasound2-dev alsa
 
       - name: build
         run: cargo build --release --target ${{ matrix.target }}
