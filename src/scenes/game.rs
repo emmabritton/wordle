@@ -1,12 +1,23 @@
-use crate::engine::{EngineState, WordleEngine};
+use crate::engine::{EngineState, SubmittedGuessInfo, WordleEngine};
 use crate::scenes::keys_to_input;
 use crate::ui::button_bar::{ButtonBar, ButtonDef, BAR_HEIGHT};
 use crate::ui::keyboard::{Key, Keyboard};
 use crate::ui::theme::colors;
-use crate::ui::wordle_renderer::render_field;
+use crate::ui::wordle_renderer::{render_field, render_guess_field};
 use crate::{Input, SceneName, SceneResult, HEIGHT, WIDTH};
-use pixels_graphics_lib::prelude::PixelFont::Standard6x7;
 use pixels_graphics_lib::prelude::*;
+
+const ANIM_UPDATE_RATE: f64 = 0.05;
+const ANIM_GUESS_STEP: f64 = ANIM_UPDATE_RATE / 5.0;
+const ANIM_ENDGAME_STEP: f64 = ANIM_UPDATE_RATE / 2.0;
+
+#[derive(Debug)]
+enum GameState {
+    Input,
+    AnimGuess(SubmittedGuessInfo),
+    AnimEndGame,
+    GameOver,
+}
 
 pub struct GameScene {
     engine: WordleEngine,
@@ -15,6 +26,9 @@ pub struct GameScene {
     end_button_bar: ButtonBar,
     input_timer: Timer,
     show_error: bool,
+    anim_timer: Timer,
+    state: GameState,
+    anim_perc: f64,
 }
 
 impl GameScene {
@@ -26,8 +40,11 @@ impl GameScene {
         println!("{}", engine.word);
         Box::new(GameScene {
             engine,
+            anim_perc: 0.0,
+            state: GameState::Input,
             show_error: false,
             keyboard: Keyboard::new(keyboard_pos),
+            anim_timer: Timer::new(ANIM_UPDATE_RATE),
             button_bar: ButtonBar::new(
                 coord!(0, HEIGHT - BAR_HEIGHT),
                 WIDTH,
@@ -50,19 +67,32 @@ impl GameScene {
 impl GameScene {
     fn submit(&mut self) {
         if let Ok(result) = self.engine.submit() {
-            if let Some((matches, mismatches, no_matches)) = result {
-                for c in matches {
-                    self.keyboard.add_match(c);
-                }
-                for c in mismatches {
-                    self.keyboard.add_mismatch(c);
-                }
-                for c in no_matches {
-                    self.keyboard.add_no_match(c);
-                }
+            if let Some(info) = result {
+                self.anim_perc = 0.0;
+                self.state = GameState::AnimGuess(info);
             }
         } else {
             self.show_error = true;
+        }
+    }
+
+    fn update_keyboard(&mut self) {
+        if let GameState::AnimGuess(info) = &self.state {
+            for c in &info.matches {
+                self.keyboard.add_match(*c);
+            }
+            for c in &info.mismatches {
+                self.keyboard.add_mismatch(*c);
+            }
+            for c in &info.no_matches {
+                self.keyboard.add_no_match(*c);
+            }
+            if self.engine.state == EngineState::Guessing {
+                self.state = GameState::Input;
+            } else {
+                self.anim_perc = 0.0;
+                self.state = GameState::AnimEndGame;
+            }
         }
     }
 }
@@ -77,27 +107,42 @@ impl Scene<SceneResult, SceneName> for GameScene {
     ) {
         graphics.clear(colors::BACKGROUND);
         self.keyboard.render(graphics);
-        render_field(graphics, coord!(0, 0), &self.engine);
+        if let GameState::AnimGuess(info) = &self.state {
+            render_guess_field(
+                graphics,
+                coord!(0, 0),
+                &self.engine,
+                info,
+                self.anim_perc.clamp(0.0, 1.0),
+            );
+        } else {
+            render_field(graphics, coord!(0, 0), &self.engine);
+        }
 
         if self.show_error {
             graphics.draw_text(
                 "Not a word",
                 TextPos::px(coord!(WIDTH / 2, HEIGHT - Keyboard::size().1 - 26)),
-                (colors::ERROR, Standard6x7, Positioning::Center),
+                (colors::ERROR, PixelFont::Standard6x7, Positioning::Center),
             );
         }
 
         match self.engine.state {
             EngineState::Found => {
-                draw_end_game(
-                    graphics,
-                    EndGame::Win(self.engine.guesses.len(), self.engine.max_guess_count),
-                );
+                if matches!(self.state, GameState::GameOver | GameState::AnimEndGame) {
+                    draw_end_game(
+                        graphics,
+                        self.anim_perc.clamp(0.0, 1.0),
+                        EndGame::Win(self.engine.guesses.len(), self.engine.max_guess_count),
+                    );
+                }
                 self.end_button_bar
                     .render(graphics, controller.get_controller_type());
             }
             EngineState::OutOfGuesses => {
-                draw_end_game(graphics, EndGame::Lose);
+                if matches!(self.state, GameState::GameOver | GameState::AnimEndGame) {
+                    draw_end_game(graphics, self.anim_perc.clamp(0.0, 1.0), EndGame::Lose);
+                }
                 self.end_button_bar
                     .render(graphics, controller.get_controller_type());
             }
@@ -114,7 +159,7 @@ impl Scene<SceneResult, SceneName> for GameScene {
         mouse_button: MouseButton,
         _: &FxHashSet<KeyCode>,
     ) {
-        if mouse_button == MouseButton::Left {
+        if matches!(self.state, GameState::Input) && mouse_button == MouseButton::Left {
             self.show_error = false;
             if let Some(key) = self.keyboard.mouse_click(down_at, mouse.xy) {
                 match key {
@@ -135,14 +180,16 @@ impl Scene<SceneResult, SceneName> for GameScene {
     ) -> SceneUpdateResult<SceneResult, SceneName> {
         if self.input_timer.update(timing) {
             let input = keys_to_input(held_keys, controller);
-            if let Some(input) = input {
-                self.show_error = false;
-                self.input_timer.reset();
-                if let Some(key) = self.keyboard.key_press(input) {
-                    match key {
-                        Key::Letter(chr) => self.engine.add_letter(chr),
-                        Key::Enter => self.submit(),
-                        Key::Backspace => self.engine.backspace(),
+            if matches!(self.state, GameState::Input) {
+                if let Some(input) = input {
+                    self.show_error = false;
+                    self.input_timer.reset();
+                    if let Some(key) = self.keyboard.key_press(input) {
+                        match key {
+                            Key::Letter(chr) => self.engine.add_letter(chr),
+                            Key::Enter => self.submit(),
+                            Key::Backspace => self.engine.backspace(),
+                        }
                     }
                 }
             }
@@ -150,11 +197,31 @@ impl Scene<SceneResult, SceneName> for GameScene {
                 return SceneUpdateResult::Pop(None);
             }
         }
+        if self.anim_timer.update(timing) {
+            match self.state {
+                GameState::Input => {}
+                GameState::AnimGuess(_) => {
+                    self.anim_perc += ANIM_GUESS_STEP;
+                    if self.anim_perc >= 1.0 {
+                        self.update_keyboard();
+                    }
+                }
+                GameState::AnimEndGame => {
+                    self.anim_perc += ANIM_ENDGAME_STEP;
+                    if self.anim_perc >= 1.0 {
+                        self.state = GameState::GameOver
+                    }
+                }
+                GameState::GameOver => {}
+            }
+        }
+
         self.keyboard.mouse_move(mouse.xy);
         SceneUpdateResult::Nothing
     }
 }
 
+#[derive(Debug, Clone)]
 enum EndGame {
     //number of guesses made, max guesses
     Win(usize, usize),
@@ -209,10 +276,12 @@ impl EndGame {
     }
 }
 
-fn draw_end_game(graphics: &mut Graphics, end_game: EndGame) {
+fn draw_end_game(graphics: &mut Graphics, perc: f64, end_game: EndGame) {
+    let anim_offset = coord!(WIDTH.lerp(0, perc as f32), 0);
+    let text_offset = (WIDTH * 2).lerp(0, perc as f32);
     let banner_edge_height = 10;
     let banner_back = Rect::new_with_size(
-        coord!(0.0, HEIGHT as f32 * 0.40),
+        coord!(0.0, HEIGHT as f32 * 0.40) + anim_offset,
         WIDTH,
         ((HEIGHT as f32) * 0.2) as usize,
     );
@@ -222,8 +291,8 @@ fn draw_end_game(graphics: &mut Graphics, end_game: EndGame) {
         banner_edge_height,
     );
     let banner_bottom = Rect::new_with_size(banner_back.bottom_left(), WIDTH, banner_edge_height);
-    let title_pos = banner_back.center() - (0, 5);
-    let message_pos = banner_back.center() + (0, 15);
+    let title_pos = banner_back.center() - (text_offset, 5);
+    let message_pos = banner_back.center() + (text_offset, 15);
 
     graphics.clear_aware(Color::new(0, 0, 0, 100));
 
@@ -244,5 +313,11 @@ fn draw_end_game(graphics: &mut Graphics, end_game: EndGame) {
         end_game.message(),
         TextPos::px(message_pos),
         (end_game.text(), PixelFont::Standard6x7, Positioning::Center),
+    );
+
+    let alpha = (inv_flerp(0.0, 1.0, perc as f32) * 100.0) as u8;
+    graphics.draw_rect(
+        Rect::new_with_size(coord!(0, HEIGHT - BAR_HEIGHT + 2), WIDTH, BAR_HEIGHT),
+        fill(Color::new(0, 0, 0, alpha)),
     );
 }

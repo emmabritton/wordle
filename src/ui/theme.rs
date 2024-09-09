@@ -29,9 +29,9 @@ pub mod colors {
 
     pub const WIN_BACK: Color = LIGHT_GRAY;
     pub const WIN_BANNER: Color = GREEN;
-    pub const WIN_TEXT: Color = DARK_GREY;
+    pub const WIN_TEXT: Color = BLACK;
 
     pub const LOSE_BACK: Color = LIGHT_GRAY;
     pub const LOSE_BANNER: Color = RED;
-    pub const LOSE_TEXT: Color = DARK_GREY;
+    pub const LOSE_TEXT: Color = BLACK;
 }

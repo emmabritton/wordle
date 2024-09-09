@@ -21,6 +21,14 @@ pub struct LetterSlot {
     pub(crate) state: SlotState,
 }
 
+#[derive(Debug, Default)]
+pub struct SubmittedGuessInfo {
+    pub word: String,
+    pub matches: Vec<char>,
+    pub mismatches: Vec<char>,
+    pub no_matches: Vec<char>,
+}
+
 impl LetterSlot {
     pub fn new(chr: char, state: SlotState) -> Self {
         LetterSlot { chr, state }
@@ -69,27 +77,29 @@ impl WordleEngine {
         }
     }
 
-    #[allow(clippy::type_complexity)] //fix
-    pub fn submit(&mut self) -> Result<Option<(Vec<char>, Vec<char>, Vec<char>)>, &'static str> {
+    pub fn submit(&mut self) -> Result<Option<SubmittedGuessInfo>, &'static str> {
         if self.state == EngineState::Guessing && self.current_guess.len() == self.word_size {
             if !self.is_word(self.current_guess.iter().collect()) {
                 return Err("Not a word");
             }
 
-            let mut output = (vec![], vec![], vec![]);
+            let mut output = SubmittedGuessInfo {
+                word: self.current_guess.iter().collect(),
+                ..SubmittedGuessInfo::default()
+            };
             let row: Vec<LetterSlot> = self
                 .current_guess
                 .iter()
                 .enumerate()
                 .map(|(i, chr)| {
                     if self.word.chars().nth(i).unwrap() == *chr {
-                        output.0.push(*chr);
+                        output.matches.push(*chr);
                         LetterSlot::new(*chr, SlotState::Match)
                     } else if self.word.contains(*chr) {
-                        output.1.push(*chr);
+                        output.mismatches.push(*chr);
                         LetterSlot::new(*chr, SlotState::WrongPos)
                     } else {
-                        output.2.push(*chr);
+                        output.no_matches.push(*chr);
                         LetterSlot::new(*chr, SlotState::NoMatch)
                     }
                 })

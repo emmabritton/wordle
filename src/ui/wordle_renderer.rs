@@ -1,4 +1,4 @@
-use crate::engine::{SlotState, WordleEngine};
+use crate::engine::{SlotState, SubmittedGuessInfo, WordleEngine};
 use crate::ui::theme::colors;
 use crate::WIDTH;
 use pixels_graphics_lib::prelude::*;
@@ -16,6 +16,54 @@ enum Slot {
     NoMatch(char),
     Mismatch(char),
     Match(char),
+}
+
+pub fn render_guess_field(
+    graphics: &mut Graphics,
+    offset: Coord,
+    engine: &WordleEngine,
+    info: &SubmittedGuessInfo,
+    perc: f64,
+) {
+    render_field(graphics, offset, engine);
+    let width = (PADDED_SIZE.0) * engine.word_size;
+    let offset = offset + ((WIDTH / 2) - (width / 2), SPACING);
+
+    let anim_row = engine.guesses.len() - 1;
+    let slot = (perc / 0.2).trunc() as usize;
+    let slot_perc1 = inv_flerp(0.0, 0.1, (perc - (slot as f64 * 0.2)) as f32);
+    let slot_perc2 = inv_flerp(0.1, 0.2, (perc - (slot as f64 * 0.2)) as f32);
+    let fading_out = slot_perc1 < 1.0;
+    let alpha = (if fading_out {
+        255.0 * slot_perc1
+    } else {
+        255.0 - (255.0 * slot_perc2)
+    }) as u8;
+    graphics.with_translate(offset, |g| {
+        let start = if fading_out { slot } else { slot + 1 };
+        g.draw_rect(
+            Rect::new_with_size(
+                coord!(start, anim_row) * PADDED_SIZE,
+                PADDED_SIZE.0 * engine.word_size,
+                SQUARE_SIZE.1,
+            ),
+            fill(colors::BACKGROUND),
+        );
+        for i in start..engine.word_size {
+            let pos = coord!(i, anim_row) * PADDED_SIZE;
+            draw_guess(
+                g,
+                pos,
+                info.word
+                    .chars()
+                    .nth(i)
+                    .unwrap_or_else(|| panic!("invalid chr {slot} of {}", info.word)),
+            );
+        }
+        let pos = coord!(slot, anim_row) * PADDED_SIZE;
+        let rect = Rect::new_with_size(pos, SQUARE_SIZE.0, SQUARE_SIZE.1);
+        g.draw_rect(rect.clone(), fill(colors::BACKGROUND.with_alpha(alpha)));
+    });
 }
 
 pub fn render_field(graphics: &mut Graphics, offset: Coord, engine: &WordleEngine) {
