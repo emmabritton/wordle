@@ -186,7 +186,7 @@ pub const FOUR: [&str; 2096] = [
     "GLOW", "SEER", "ECHO", "FINK", "GUMS", "SHOW", "VEEP", "LAVA",
 ];
 
-pub const FIVE: [&str; 2310] = [
+pub const FIVE: [&str; 2312] = [
     "RASPY", "JELLY", "CRIMP", "SPOKE", "LOCUS", "BASIL", "APART", "SCALD", "PAGAN", "FINCH",
     "MONEY", "TAPIR", "PENAL", "AGATE", "EVERY", "BUNCH", "BOXER", "MOIST", "RAYON", "FAIRY",
     "SPELL", "COURT", "HUNKY", "MANGA", "HALVE", "WORSE", "SMACK", "UNCUT", "AGILE", "BREAD",
@@ -418,6 +418,7 @@ pub const FIVE: [&str; 2310] = [
     "SKATE", "NADIR", "MOURN", "CHAFF", "TRACK", "FAINT", "SWELL", "UNFIT", "SWEAT", "MIDST",
     "FELON", "FORTY", "SHALL", "SNORE", "FLICK", "REARM", "FLIRT", "FLOOR", "BIRCH", "SCANT",
     "MOODY", "ALLOW", "LATER", "GOURD", "CHASE", "KINKY", "ANODE", "GRACE", "BLEEP", "MOGUL",
+    "LOOKS", "GOODS",
 ];
 
 pub const SIX: [&str; 5128] = [

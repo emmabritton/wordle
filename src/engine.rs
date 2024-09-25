@@ -85,7 +85,7 @@ impl WordleEngine {
                 word: self.current_guess.iter().collect(),
                 ..SubmittedGuessInfo::default()
             };
-            let row: Vec<LetterSlot> = self
+            let mut row: Vec<LetterSlot> = self
                 .current_guess
                 .iter()
                 .enumerate()
@@ -102,6 +102,7 @@ impl WordleEngine {
                     }
                 })
                 .collect();
+            self.remove_false_mismatches(&mut row);
             let word_found = row.iter().all(|slot| slot.state == SlotState::Match);
             self.guesses.push(row);
             if word_found {
@@ -132,6 +133,27 @@ impl WordleEngine {
 
         list.contains(&word.as_str())
     }
+
+    /// Removes any entries for letters in the wrong places if all correct places have been found
+    /// So, if the word was "SHOTS" and the guess was "LOOKS" then
+    /// 1st O will be grey
+    /// 2nd O will be green
+    fn remove_false_mismatches(&self, slots: &mut [LetterSlot]) {
+        for letter in self.word.chars() {
+            let num_of_letter_instances = self.word.chars().filter(|c| c == &letter).count();
+            let num_of_matches = slots
+                .iter()
+                .filter(|ls| ls.chr == letter && ls.state == SlotState::Match)
+                .count();
+            if num_of_letter_instances == num_of_matches {
+                slots.iter_mut().for_each(|ls| {
+                    if ls.chr == letter && ls.state != SlotState::Match {
+                        ls.state = SlotState::NoMatch;
+                    }
+                });
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -146,6 +168,49 @@ mod test {
         assert_eq!(engine.current_guess, vec!['A']);
         engine.backspace();
         assert_eq!(engine.current_guess, vec![]);
+    }
+
+    #[test]
+    fn mismatch_test() {
+        let mut engine = WordleEngine::new(5, 0);
+        engine.word = "SHOTS".to_string();
+        engine.current_guess = vec!['L', 'O', 'O', 'K', 'S'];
+        let result = engine.submit().unwrap().unwrap();
+        let expected = SubmittedGuessInfo {
+            word: "LOOKS".to_string(),
+            matches: vec!['O', 'S'],
+            mismatches: vec!['O'],
+            no_matches: vec!['L', 'K'],
+        };
+        assert_eq!(result.word, expected.word);
+        assert_eq!(result.mismatches, expected.mismatches);
+        assert_eq!(result.matches, expected.matches);
+        assert_eq!(result.no_matches, expected.no_matches);
+        assert_eq!(
+            engine.guesses[0],
+            vec![
+                LetterSlot {
+                    chr: 'L',
+                    state: SlotState::NoMatch
+                },
+                LetterSlot {
+                    chr: 'O',
+                    state: SlotState::NoMatch
+                },
+                LetterSlot {
+                    chr: 'O',
+                    state: SlotState::Match
+                },
+                LetterSlot {
+                    chr: 'K',
+                    state: SlotState::NoMatch
+                },
+                LetterSlot {
+                    chr: 'S',
+                    state: SlotState::Match
+                }
+            ]
+        );
     }
 
     #[test]
