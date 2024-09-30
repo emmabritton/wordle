@@ -195,6 +195,7 @@ impl Scene<SceneResult, SceneName> for MenuScene {
         mouse: &MouseData,
         held_keys: &FxHashSet<KeyCode>,
         controller: &GameController,
+        _: &Window,
     ) -> SceneUpdateResult<SceneResult, SceneName> {
         if self.input_timer.update(timing) {
             if let Some(input) = keys_to_input(held_keys, controller) {

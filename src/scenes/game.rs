@@ -223,6 +223,7 @@ impl Scene<SceneResult, SceneName> for GameScene {
         mouse: &MouseData,
         held_keys: &FxHashSet<KeyCode>,
         controller: &GameController,
+        _: &Window,
     ) -> SceneUpdateResult<SceneResult, SceneName> {
         if let Some(sound) = &mut self.win_sound {
             sound.update(timing);
